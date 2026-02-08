@@ -23,7 +23,7 @@ public class DataSeeder implements CommandLineRunner {
                     "2048",
                     "Join the numbers and get to the 2048 tile! A classic puzzle game that tests your strategic thinking.",
                     "https://images.unsplash.com/photo-1614294148960-9aa740632a87?q=80&w=600&auto=format&fit=crop",
-                    "https://play2048.co/",
+                    "https://funhtml5games.com/?play=2048bit",
                     "Puzzle"
             ));
 
@@ -46,7 +46,7 @@ public class DataSeeder implements CommandLineRunner {
             gameRepository.save(new Game(
                     "Flappy Bird",
                     "Navigate the bird through the pipes. Simple to play, hard to master.",
-                    "https://images.unsplash.com/photo-1580234505803-516d3f237ebc?q=80&w=600&auto=format&fit=crop",
+                    "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?q=80&w=600&auto=format&fit=crop",
                     "https://flappybird.io/",
                     "Arcade"
             ));
