@@ -5,6 +5,8 @@ import com.arcadex.api.repository.GameRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class DataSeeder implements CommandLineRunner {
 
@@ -52,6 +54,31 @@ public class DataSeeder implements CommandLineRunner {
             ));
 
             System.out.println("Seeding complete!");
+        } else {
+            fixExistingData();
+        }
+    }
+
+    private void fixExistingData() {
+        for (Game game : gameRepository.findAll()) {
+            boolean updated = false;
+
+            if ("Flappy Bird".equals(game.getTitle()) &&
+                    game.getThumbnailUrl().contains("photo-1580234505803")) {
+                game.setThumbnailUrl("https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?q=80&w=600&auto=format&fit=crop");
+                updated = true;
+            }
+
+            if ("2048".equals(game.getTitle()) &&
+                    "https://play2048.co/".equals(game.getGameUrl())) {
+                game.setGameUrl("https://funhtml5games.com/?play=2048bit");
+                updated = true;
+            }
+
+            if (updated) {
+                gameRepository.save(game);
+                System.out.println("Updated data for: " + game.getTitle());
+            }
         }
     }
 }
