@@ -28,6 +28,8 @@ repositories {
 extra["springCloudVersion"] = "2025.1.0"
 extra["awsMysqlJdbcVersion"] = "1.1.11"
 extra["logstashLogbackEncoderVersion"] = "7.4"
+extra["openapiVersion"] = "2.3.0"
+extra["gsonVersion"] = "2.10.1"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -38,20 +40,27 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("io.micrometer:micrometer-tracing-bridge-brave")
 
+    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+
     // OpenFeign
 	implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
 
     // Log
     implementation("net.logstash.logback:logstash-logback-encoder:${property("logstashLogbackEncoderVersion")}")
 
-    // Lombok
-	compileOnly("org.projectlombok:lombok")
-
     // JDBC
-    implementation("software.aws.rds:aws-mysql-jdbc:${property("awsMysqlJdbcVersion")}")
+    // implementation("software.aws.rds:aws-mysql-jdbc:${property("awsMysqlJdbcVersion")}")
+    implementation("org.postgresql:postgresql")
 
-	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-	annotationProcessor("org.projectlombok:lombok")
+    // Lombok
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+
+    // Swagger
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${property("openapiVersion")}")
+
+    // Gson
+    implementation("com.google.code.gson:gson:${property("gsonVersion")}")
 
     // Test
     runtimeOnly("com.h2database:h2")
