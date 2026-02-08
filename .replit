@@ -5,3 +5,36 @@ expertMode = true
 [nix]
 channel = "stable-25_05"
 packages = ["jdk21", "gradle"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace && JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) java -jar build/libs/arcadex-api-0.0.1-SNAPSHOT.jar"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd /home/runner/workspace && JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) java -jar build/libs/arcadex-api-0.0.1-SNAPSHOT.jar"]
+build = ["bash", "-c", "cd /home/runner/workspace && JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) ./gradlew bootJar --no-daemon"]
