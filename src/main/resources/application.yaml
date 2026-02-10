@@ -3,6 +3,11 @@ server:
   address: 0.0.0.0
 
 spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 150MB
   datasource:
     url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}?sslmode=prefer
     driver-class-name: org.postgresql.Driver
