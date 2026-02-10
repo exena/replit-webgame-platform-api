@@ -29,9 +29,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOriginPatterns(List.of(
             "https://6c61fd14-a05b-4873-a436-59670aad0b9d-00-3j0pp9t8xzcp8.spock.replit.dev",
-            "https://game-hub--exena01.replit.app"
+            "https://game-hub--exena01.replit.app",
+            "http://localhost:*"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
