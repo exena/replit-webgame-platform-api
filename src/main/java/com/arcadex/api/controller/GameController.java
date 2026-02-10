@@ -9,7 +9,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/games")
-@CrossOrigin(origins = "*")
 public class GameController {
 
     private final GameRepository gameRepository;
