@@ -81,6 +81,7 @@ public class DungeonMapService {
             - Include a variety of room types for interesting gameplay.
             - Grid positions use integer coordinates starting from 0.
             - Respond with ONLY the JSON, no markdown formatting or extra text.
+            - IMPORTANT: If the user's request is NOT related to dungeon, map, level, or game environment generation, do NOT generate a dungeon map. Instead, respond with ONLY this exact JSON: {"error": "INVALID_PROMPT", "message": "This service only accepts dungeon or map generation requests."}
             """;
 
     public String generateDungeonMap(String userPrompt) throws IOException, InterruptedException {
@@ -127,7 +128,13 @@ public class DungeonMapService {
                 .getAsJsonObject("message")
                 .get("content").getAsString();
 
-        JsonParser.parseString(content).getAsJsonObject();
+        JsonObject contentJson = JsonParser.parseString(content).getAsJsonObject();
+
+        if (contentJson.has("error") && "INVALID_PROMPT".equals(contentJson.get("error").getAsString())) {
+            String message = contentJson.has("message") ? contentJson.get("message").getAsString() : "Invalid prompt.";
+            log.warn("Prompt rejected by LLM guardrail: {}", userPrompt);
+            throw new IllegalArgumentException(message);
+        }
 
         log.info("Dungeon map generated successfully");
         return content;

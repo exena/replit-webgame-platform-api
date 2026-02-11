@@ -42,6 +42,10 @@ public class DungeonMapController {
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(mapJson);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid prompt rejected: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to generate dungeon map", e);
             return ResponseEntity.internalServerError()
