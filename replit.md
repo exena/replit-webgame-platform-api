@@ -20,14 +20,16 @@ src/main/java/com/arcadex/api/
 │   └── SecurityConfig.java        # Spring Security + CORS config
 ├── controller/
 │   ├── GameController.java        # REST controller for /api/games (list, get, upload)
-│   └── FileController.java        # Serves files from object storage (/api/files/**)
+│   ├── FileController.java        # Serves files from object storage (/api/files/**)
+│   └── DungeonMapController.java  # REST controller for /api/dungeon-map/generate
 ├── entity/
 │   └── Game.java                  # JPA entity for games table
 ├── repository/
 │   └── GameRepository.java        # Spring Data JPA repository
 └── service/
     ├── ObjectStorageService.java   # Replit Object Storage sidecar integration
-    └── GameUploadService.java      # Game upload logic (zip extraction + storage upload)
+    ├── GameUploadService.java      # Game upload logic (zip extraction + storage upload)
+    └── DungeonMapService.java      # LLM-powered dungeon map generation
 src/main/resources/
 └── application.yaml               # Application configuration
 ```
@@ -38,6 +40,7 @@ src/main/resources/
 - `POST /api/games/upload` - Upload a new game (multipart: title, description, category, gameFile(.zip), thumbnail)
 - `GET /api/files/**` - Serve files from object storage (game files, thumbnails)
 - `GET /actuator` - Health check endpoint
+- `POST /api/dungeon-map/generate` - Generate LLM-powered dungeon map JSON spec (body: {"prompt": "..."})
 - `GET /swagger-ui.html` - Swagger API documentation
 
 ### CORS Policy
@@ -69,9 +72,17 @@ Allowed origins:
 - Hibernate DDL auto mode is set to `update`
 
 ## Recent Changes
+- Added LLM-powered dungeon map generation endpoint (POST /api/dungeon-map/generate)
+  - Uses Replit AI Integrations (OpenAI-compatible API via localhost:1106 sidecar)
+  - Generates Unity-compatible JSON dungeon specifications from user prompts
+  - HttpClient configured for HTTP/1.1 (required for sidecar compatibility)
 - Added game upload API endpoint (POST /api/games/upload)
 - Added file serving endpoint (GET /api/files/**)
 - Integrated Replit Object Storage for file storage
 - Implemented zip extraction and per-file upload to storage
 - Restricted CORS to specific frontend domains + localhost
 - Added multipart file upload configuration (100MB max)
+
+## Technical Notes
+- Java HttpClient MUST use HTTP/1.1 when calling the Replit AI sidecar (localhost:1106). HTTP/2 causes 502 errors.
+- AI integration config: base URL and API key set via `ai.openai.base-url` and `ai.openai.api-key` in application.yaml

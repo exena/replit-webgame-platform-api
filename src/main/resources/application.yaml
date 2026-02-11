@@ -27,3 +27,8 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+ai:
+  openai:
+    base-url: ${AI_INTEGRATIONS_OPENAI_BASE_URL:http://localhost:1106/modelfarm/openai}
+    api-key: ${AI_INTEGRATIONS_OPENAI_API_KEY:_DUMMY_API_KEY_}
