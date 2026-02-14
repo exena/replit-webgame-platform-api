@@ -10,6 +10,7 @@ A Spring Boot 4.0.2 REST API backend for a web game platform. Provides endpoints
 - **Database**: PostgreSQL (Replit built-in)
 - **ORM**: Spring Data JPA / Hibernate 7.x
 - **File Storage**: Replit Object Storage (GCS-backed, via sidecar at localhost:1106)
+- **AI**: Gemini 2.5 Flash via Replit AI Integrations (OpenAI-compatible sidecar at localhost:1106)
 
 ### Directory Structure
 ```
@@ -22,6 +23,9 @@ src/main/java/com/arcadex/api/
 │   ├── GameController.java        # REST controller for /api/games (list, get, upload)
 │   ├── FileController.java        # Serves files from object storage (/api/files/**)
 │   └── DungeonMapController.java  # REST controller for /api/dungeon-map/generate
+├── dto/
+│   ├── DungeonGenerateRequest.java  # Request DTO for dungeon generation
+│   └── DungeonGenerateResponse.java # Response DTO for dungeon generation
 ├── entity/
 │   └── Game.java                  # JPA entity for games table
 ├── repository/
@@ -29,7 +33,7 @@ src/main/java/com/arcadex/api/
 └── service/
     ├── ObjectStorageService.java   # Replit Object Storage sidecar integration
     ├── GameUploadService.java      # Game upload logic (zip extraction + storage upload)
-    └── DungeonMapService.java      # LLM-powered dungeon map generation
+    └── DungeonMapService.java      # Gemini-powered dungeon room description generation
 src/main/resources/
 └── application.yaml               # Application configuration
 ```
@@ -40,8 +44,22 @@ src/main/resources/
 - `POST /api/games/upload` - Upload a new game (multipart: title, description, category, gameFile(.zip), thumbnail)
 - `GET /api/files/**` - Serve files from object storage (game files, thumbnails)
 - `GET /actuator` - Health check endpoint
-- `POST /api/dungeon-map/generate` - Generate LLM-powered dungeon map JSON spec (body: {"prompt": "..."})
+- `POST /api/dungeon-map/generate` - Generate dungeon room descriptions via Gemini (accepts rooms + concept prompt, returns named/described rooms)
 - `GET /swagger-ui.html` - Swagger API documentation
+
+### Dungeon Map Generate Endpoint
+**POST /api/dungeon-map/generate**
+
+Request: `{ prompt, rooms[{id, name, x, y, width, height, type}], corridors[{from, to}], roomCount }`
+- `prompt`: dungeon concept (e.g., "고대 마법사의 탑")
+- `rooms`: list of rooms with coordinates and type (room, hallway, entrance, treasure, trap, bridge)
+- `corridors`: connections between rooms
+- `roomCount`: total room count
+
+Response: `{ dungeonName, rooms[{id, name, x, y, width, height, type, description}] }`
+- Gemini generates a creative dungeon name and Korean names/descriptions per room
+- Hallway rooms get brief descriptions; treasure/entrance/trap rooms get detailed descriptions
+- Original coordinates/sizes/types are preserved
 
 ### CORS Policy
 Allowed origins:
@@ -72,10 +90,12 @@ Allowed origins:
 - Hibernate DDL auto mode is set to `update`
 
 ## Recent Changes
-- Added LLM-powered dungeon map generation endpoint (POST /api/dungeon-map/generate)
-  - Uses Replit AI Integrations (OpenAI-compatible API via localhost:1106 sidecar)
-  - Generates Unity-compatible JSON dungeon specifications from user prompts
-  - HttpClient configured for HTTP/1.1 (required for sidecar compatibility)
+- Replaced LLM dungeon map generation endpoint with Gemini-powered room description generator (2026-02-14)
+  - New endpoint accepts pre-built room layouts from frontend + dungeon concept prompt
+  - Gemini (gemini-2.5-flash) generates creative dungeon names and room descriptions in Korean
+  - Optimized for large room counts (100+): sends compact room info, adjusts max tokens dynamically
+  - Hallways get brief descriptions; special rooms (treasure, entrance, trap) get detailed ones
+  - Added DTO classes (DungeonGenerateRequest, DungeonGenerateResponse) for type-safe request/response
 - Added game upload API endpoint (POST /api/games/upload)
 - Added file serving endpoint (GET /api/files/**)
 - Integrated Replit Object Storage for file storage
@@ -86,3 +106,5 @@ Allowed origins:
 ## Technical Notes
 - Java HttpClient MUST use HTTP/1.1 when calling the Replit AI sidecar (localhost:1106). HTTP/2 causes 502 errors.
 - AI integration config: base URL and API key set via `ai.openai.base-url` and `ai.openai.api-key` in application.yaml
+- Gemini model used: gemini-2.5-flash (via OpenAI-compatible API through sidecar)
+- Max tokens for Gemini dynamically scaled: min(max(roomCount * 150, 2048), 65536)

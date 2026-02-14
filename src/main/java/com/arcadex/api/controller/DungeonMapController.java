@@ -1,10 +1,10 @@
 package com.arcadex.api.controller;
 
+import com.arcadex.api.dto.DungeonGenerateRequest;
+import com.arcadex.api.dto.DungeonGenerateResponse;
 import com.arcadex.api.service.DungeonMapService;
-import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,26 +26,22 @@ public class DungeonMapController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<?> generateDungeonMap(@RequestBody Map<String, String> request) {
-        String prompt = request.get("prompt");
-
-        if (prompt == null || prompt.isBlank()) {
+    public ResponseEntity<?> generateDungeonMap(@RequestBody DungeonGenerateRequest request) {
+        if (request.getPrompt() == null || request.getPrompt().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Prompt is required"));
         }
 
-        if (prompt.length() > 2000) {
+        if (request.getRooms() == null || request.getRooms().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Rooms list is required"));
+        }
+
+        if (request.getPrompt().length() > 2000) {
             return ResponseEntity.badRequest().body(Map.of("error", "Prompt must be 2000 characters or less"));
         }
 
         try {
-            String mapJson = dungeonMapService.generateDungeonMap(prompt);
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(mapJson);
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid prompt rejected: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
+            DungeonGenerateResponse response = dungeonMapService.generateDungeonMap(request);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to generate dungeon map", e);
             return ResponseEntity.internalServerError()

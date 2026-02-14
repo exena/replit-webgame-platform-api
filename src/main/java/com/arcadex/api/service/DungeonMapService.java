@@ -1,7 +1,10 @@
 package com.arcadex.api.service;
 
+import com.arcadex.api.dto.DungeonGenerateRequest;
+import com.arcadex.api.dto.DungeonGenerateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.slf4j.Logger;
@@ -14,6 +17,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class DungeonMapService {
@@ -31,70 +38,84 @@ public class DungeonMapService {
     @Value("${ai.openai.api-key}")
     private String apiKey;
 
-    private static final String SYSTEM_PROMPT = """
-            You are a dungeon map designer for game development. When given a user prompt, generate a detailed dungeon map specification in JSON format.
+    public DungeonGenerateResponse generateDungeonMap(DungeonGenerateRequest request) throws IOException, InterruptedException {
+        int actualRoomCount = request.getRooms().size();
+        String systemPrompt = buildSystemPrompt();
+        String userPrompt = buildUserPrompt(request, actualRoomCount);
 
-            The JSON output must follow this exact structure:
-            {
-              "mapName": "string - name of the dungeon",
-              "description": "string - brief description of the dungeon theme",
-              "gridSize": { "width": number, "height": number },
-              "rooms": [
+        String llmResponse = callLlm(systemPrompt, userPrompt, actualRoomCount);
+        return parseResponse(llmResponse, request.getRooms());
+    }
+
+    private String buildSystemPrompt() {
+        return """
+                You are a creative dungeon designer. Given a dungeon concept and a list of rooms with their types, \
+                generate an evocative dungeon name and a unique name + description for each room that fits the concept.
+
+                Rules:
+                - Respond with ONLY valid JSON, no markdown formatting or extra text.
+                - The JSON must have this structure:
                 {
-                  "id": "string - unique room identifier (e.g. room_1)",
-                  "name": "string - room name",
-                  "type": "string - one of: spawn, combat, treasure, boss, corridor, trap, puzzle, rest",
-                  "position": { "x": number, "y": number },
-                  "size": { "width": number, "height": number },
-                  "description": "string - what is in this room",
-                  "enemies": [
-                    { "type": "string", "count": number, "level": number }
-                  ],
-                  "items": [
-                    { "type": "string", "name": "string", "rarity": "string - common/uncommon/rare/epic/legendary" }
-                  ],
-                  "traps": [
-                    { "type": "string", "damage": number, "description": "string" }
+                  "dungeonName": "string",
+                  "rooms": [
+                    {
+                      "id": "string - must match the input room id exactly",
+                      "name": "string - creative room name fitting the dungeon concept",
+                      "description": "string - room description"
+                    }
                   ]
                 }
-              ],
-              "connections": [
-                {
-                  "from": "string - room id",
-                  "to": "string - room id",
-                  "type": "string - one of: door, hidden_door, locked_door, corridor, stairs_up, stairs_down, portal",
-                  "keyRequired": "string or null - item name needed to open"
-                }
-              ],
-              "environment": {
-                "theme": "string - e.g. cave, castle, crypt, sewer, temple",
-                "lighting": "string - dark, dim, torchlit, magical_glow, bright",
-                "ambience": "string - description of sounds and atmosphere",
-                "difficulty": "string - easy, medium, hard, nightmare"
-              }
+                - For rooms of type "hallway": give a short name and a brief 1-sentence description.
+                - For rooms of type "entrance": describe what adventurers see when entering the dungeon.
+                - For rooms of type "treasure": describe valuable loot and the atmosphere in vivid detail (2-3 sentences).
+                - For rooms of type "trap": describe hidden dangers and the environment (2-3 sentences).
+                - For rooms of type "bridge": describe the structure and what lies below (1-2 sentences).
+                - For rooms of type "room": give a thematic description fitting the dungeon concept (1-2 sentences).
+                - All names and descriptions must be in Korean.
+                - Every room id from the input must appear in the output.
+                """;
+    }
+
+    private String buildUserPrompt(DungeonGenerateRequest request, int actualRoomCount) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("던전 컨셉: ").append(request.getPrompt()).append("\n\n");
+        sb.append("총 방 개수: ").append(actualRoomCount).append("\n\n");
+        sb.append("방 목록:\n");
+
+        for (DungeonGenerateRequest.RoomInput room : request.getRooms()) {
+            sb.append("- id: ").append(room.getId())
+              .append(", type: ").append(room.getType())
+              .append(", pos: (").append(room.getX()).append(",").append(room.getY()).append(")")
+              .append(", size: ").append(room.getWidth()).append("x").append(room.getHeight())
+              .append("\n");
+        }
+
+        if (request.getCorridors() != null && !request.getCorridors().isEmpty()) {
+            sb.append("\n연결 정보:\n");
+            for (DungeonGenerateRequest.CorridorInput c : request.getCorridors()) {
+                sb.append("- ").append(c.getFrom()).append(" → ").append(c.getTo()).append("\n");
             }
+        }
 
-            Rules:
-            - Rooms must not overlap based on their position and size.
-            - Every room must be reachable via connections.
-            - There must be exactly one spawn room and at least one boss room.
-            - Include a variety of room types for interesting gameplay.
-            - Grid positions use integer coordinates starting from 0.
-            - Respond with ONLY the JSON, no markdown formatting or extra text.
-            - IMPORTANT: If the user's request is NOT related to any kind of spatial structure, environment, building, map, level, dungeon, or architecture generation, do NOT generate a map. Instead, respond with ONLY this exact JSON: {"error": "INVALID_PROMPT", "message": "This service only accepts map or environment generation requests."}
-            - Accept any request describing a physical space or structure (dungeons, buildings, castles, houses, caves, cities, floors, rooms, etc.) and adapt the JSON schema to represent it.
-            """;
+        return sb.toString();
+    }
 
-    public String generateDungeonMap(String userPrompt) throws IOException, InterruptedException {
+    private String callLlm(String systemPrompt, String userPrompt, int roomCount) throws IOException, InterruptedException {
         JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("model", "gpt-5-mini");
-        requestBody.addProperty("max_completion_tokens", 8192);
+        requestBody.addProperty("model", "gemini-2.5-flash");
+
+        int maxTokens = Math.min(Math.max(roomCount * 150, 2048), 65536);
+        requestBody.addProperty("max_completion_tokens", maxTokens);
+
+        JsonObject responseFormat = new JsonObject();
+        responseFormat.addProperty("type", "json_object");
+        requestBody.add("response_format", responseFormat);
 
         JsonArray messages = new JsonArray();
 
         JsonObject systemMsg = new JsonObject();
         systemMsg.addProperty("role", "system");
-        systemMsg.addProperty("content", SYSTEM_PROMPT);
+        systemMsg.addProperty("content", systemPrompt);
         messages.add(systemMsg);
 
         JsonObject userMsg = new JsonObject();
@@ -106,38 +127,91 @@ public class DungeonMapService {
 
         String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
                 .build();
 
-        log.info("Calling LLM API at URL: {}", url);
+        log.info("Calling Gemini API for dungeon generation ({} rooms)", roomCount);
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            log.error("LLM API returned status {}: {}", response.statusCode(), response.body());
-            throw new IOException("LLM API returned status " + response.statusCode());
+            log.error("Gemini API returned status {}: {}", response.statusCode(), response.body());
+            throw new IOException("Gemini API returned status " + response.statusCode());
         }
 
         JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
-        String content = responseJson
+        return responseJson
                 .getAsJsonArray("choices")
                 .get(0).getAsJsonObject()
                 .getAsJsonObject("message")
                 .get("content").getAsString();
+    }
 
-        JsonObject contentJson = JsonParser.parseString(content).getAsJsonObject();
-
-        if (contentJson.has("error") && "INVALID_PROMPT".equals(contentJson.get("error").getAsString())) {
-            String message = contentJson.has("message") ? contentJson.get("message").getAsString() : "Invalid prompt.";
-            log.warn("Prompt rejected by LLM guardrail: {}", userPrompt);
-            throw new IllegalArgumentException(message);
+    private DungeonGenerateResponse parseResponse(String llmContent, List<DungeonGenerateRequest.RoomInput> originalRooms) {
+        JsonObject parsed;
+        try {
+            parsed = JsonParser.parseString(llmContent).getAsJsonObject();
+        } catch (Exception e) {
+            log.error("Failed to parse Gemini response as JSON: {}", llmContent, e);
+            throw new RuntimeException("Gemini returned invalid JSON response");
         }
 
-        log.info("Dungeon map generated successfully");
-        return content;
+        String dungeonName = "Unnamed Dungeon";
+        try {
+            if (parsed.has("dungeonName") && !parsed.get("dungeonName").isJsonNull()) {
+                dungeonName = parsed.get("dungeonName").getAsString();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract dungeonName from response", e);
+        }
+
+        Map<String, JsonObject> llmRoomsById = new HashMap<>();
+        try {
+            if (parsed.has("rooms") && parsed.get("rooms").isJsonArray()) {
+                for (JsonElement el : parsed.getAsJsonArray("rooms")) {
+                    if (el.isJsonObject()) {
+                        JsonObject roomObj = el.getAsJsonObject();
+                        if (roomObj.has("id") && !roomObj.get("id").isJsonNull()) {
+                            llmRoomsById.put(roomObj.get("id").getAsString(), roomObj);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse rooms from Gemini response, using fallback names", e);
+        }
+
+        if (llmRoomsById.isEmpty()) {
+            log.warn("Gemini returned no valid room data, all rooms will use original names");
+        }
+
+        List<DungeonGenerateResponse.RoomOutput> outputRooms = new ArrayList<>();
+        for (DungeonGenerateRequest.RoomInput original : originalRooms) {
+            DungeonGenerateResponse.RoomOutput out = new DungeonGenerateResponse.RoomOutput();
+            out.setId(original.getId());
+            out.setX(original.getX());
+            out.setY(original.getY());
+            out.setWidth(original.getWidth());
+            out.setHeight(original.getHeight());
+            out.setType(original.getType());
+
+            JsonObject llmRoom = llmRoomsById.get(original.getId());
+            if (llmRoom != null) {
+                out.setName(llmRoom.has("name") && !llmRoom.get("name").isJsonNull()
+                        ? llmRoom.get("name").getAsString() : original.getName());
+                out.setDescription(llmRoom.has("description") && !llmRoom.get("description").isJsonNull()
+                        ? llmRoom.get("description").getAsString() : "");
+            } else {
+                out.setName(original.getName());
+                out.setDescription("");
+            }
+            outputRooms.add(out);
+        }
+
+        return new DungeonGenerateResponse(dungeonName, outputRooms);
     }
 }
