@@ -9,7 +9,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -32,18 +31,15 @@ public class DungeonMapService {
             .version(HttpClient.Version.HTTP_1_1)
             .build();
 
-    @Value("${ai.openai.base-url}")
-    private String baseUrl;
-
-    @Value("${ai.openai.api-key}")
-    private String apiKey;
+    private static final String GEMINI_BASE_URL = "http://localhost:1106/modelfarm/gemini";
+    private static final String GEMINI_MODEL = "gemini-2.5-flash";
 
     public DungeonGenerateResponse generateDungeonMap(DungeonGenerateRequest request) throws IOException, InterruptedException {
         int actualRoomCount = request.getRooms().size();
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(request, actualRoomCount);
 
-        String llmResponse = callLlm(systemPrompt, userPrompt, actualRoomCount);
+        String llmResponse = callGemini(systemPrompt, userPrompt, actualRoomCount);
         return parseResponse(llmResponse, request.getRooms());
     }
 
@@ -100,41 +96,43 @@ public class DungeonMapService {
         return sb.toString();
     }
 
-    private String callLlm(String systemPrompt, String userPrompt, int roomCount) throws IOException, InterruptedException {
+    private String callGemini(String systemPrompt, String userPrompt, int roomCount) throws IOException, InterruptedException {
         JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("model", "gemini-2.5-flash");
 
+        JsonObject systemInstruction = new JsonObject();
+        JsonArray systemParts = new JsonArray();
+        JsonObject systemPart = new JsonObject();
+        systemPart.addProperty("text", systemPrompt);
+        systemParts.add(systemPart);
+        systemInstruction.add("parts", systemParts);
+        requestBody.add("systemInstruction", systemInstruction);
+
+        JsonArray contents = new JsonArray();
+        JsonObject userContent = new JsonObject();
+        userContent.addProperty("role", "user");
+        JsonArray userParts = new JsonArray();
+        JsonObject userPart = new JsonObject();
+        userPart.addProperty("text", userPrompt);
+        userParts.add(userPart);
+        userContent.add("parts", userParts);
+        contents.add(userContent);
+        requestBody.add("contents", contents);
+
+        JsonObject generationConfig = new JsonObject();
         int maxTokens = Math.min(Math.max(roomCount * 150, 2048), 65536);
-        requestBody.addProperty("max_completion_tokens", maxTokens);
+        generationConfig.addProperty("maxOutputTokens", maxTokens);
+        generationConfig.addProperty("responseMimeType", "application/json");
+        requestBody.add("generationConfig", generationConfig);
 
-        JsonObject responseFormat = new JsonObject();
-        responseFormat.addProperty("type", "json_object");
-        requestBody.add("response_format", responseFormat);
-
-        JsonArray messages = new JsonArray();
-
-        JsonObject systemMsg = new JsonObject();
-        systemMsg.addProperty("role", "system");
-        systemMsg.addProperty("content", systemPrompt);
-        messages.add(systemMsg);
-
-        JsonObject userMsg = new JsonObject();
-        userMsg.addProperty("role", "user");
-        userMsg.addProperty("content", userPrompt);
-        messages.add(userMsg);
-
-        requestBody.add("messages", messages);
-
-        String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        String url = GEMINI_BASE_URL + "/models/" + GEMINI_MODEL + ":generateContent";
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
                 .build();
 
-        log.info("Calling Gemini API for dungeon generation ({} rooms)", roomCount);
+        log.info("Calling Gemini API for dungeon generation ({} rooms, maxTokens={})", roomCount, maxTokens);
 
         HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
@@ -145,10 +143,12 @@ public class DungeonMapService {
 
         JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
         return responseJson
-                .getAsJsonArray("choices")
+                .getAsJsonArray("candidates")
                 .get(0).getAsJsonObject()
-                .getAsJsonObject("message")
-                .get("content").getAsString();
+                .getAsJsonObject("content")
+                .getAsJsonArray("parts")
+                .get(0).getAsJsonObject()
+                .get("text").getAsString();
     }
 
     private DungeonGenerateResponse parseResponse(String llmContent, List<DungeonGenerateRequest.RoomInput> originalRooms) {
