@@ -105,8 +105,7 @@ Allowed origins:
 
 ## Technical Notes
 - Java HttpClient MUST use HTTP/1.1 when calling the Replit AI sidecar (localhost:1106). HTTP/2 causes 502 errors.
-- Gemini API uses native Gemini REST format (not OpenAI-compatible) at `http://localhost:1106/modelfarm/gemini/models/{model}:generateContent`
-- Gemini model used: gemini-2.5-flash
-- Gemini uses `systemInstruction` for system prompts (not OpenAI `role: system`), and `responseMimeType: application/json` for JSON output
-- Max tokens for Gemini dynamically scaled: min(max(roomCount * 150, 2048), 65536)
-- OpenAI-compatible sidecar does NOT support Gemini model names; must use Gemini native API endpoint instead
+- AI integration uses OpenAI-compatible API via sidecar at localhost:1106, model: gpt-4o-mini
+- AI integration config: base URL and API key set via `ai.openai.base-url` and `ai.openai.api-key` in application.yaml
+- Max tokens dynamically scaled: min(max(roomCount * 150, 2048), 65536)
+- JSON output enforced via `response_format: { type: "json_object" }`

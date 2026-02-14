@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -31,15 +32,18 @@ public class DungeonMapService {
             .version(HttpClient.Version.HTTP_1_1)
             .build();
 
-    private static final String GEMINI_BASE_URL = "http://localhost:1106/modelfarm/gemini";
-    private static final String GEMINI_MODEL = "gemini-2.5-flash";
+    @Value("${ai.openai.base-url}")
+    private String baseUrl;
+
+    @Value("${ai.openai.api-key}")
+    private String apiKey;
 
     public DungeonGenerateResponse generateDungeonMap(DungeonGenerateRequest request) throws IOException, InterruptedException {
         int actualRoomCount = request.getRooms().size();
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(request, actualRoomCount);
 
-        String llmResponse = callGemini(systemPrompt, userPrompt, actualRoomCount);
+        String llmResponse = callLlm(systemPrompt, userPrompt, actualRoomCount);
         return parseResponse(llmResponse, request.getRooms());
     }
 
@@ -96,59 +100,55 @@ public class DungeonMapService {
         return sb.toString();
     }
 
-    private String callGemini(String systemPrompt, String userPrompt, int roomCount) throws IOException, InterruptedException {
+    private String callLlm(String systemPrompt, String userPrompt, int roomCount) throws IOException, InterruptedException {
         JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("model", "gpt-4o-mini");
 
-        JsonObject systemInstruction = new JsonObject();
-        JsonArray systemParts = new JsonArray();
-        JsonObject systemPart = new JsonObject();
-        systemPart.addProperty("text", systemPrompt);
-        systemParts.add(systemPart);
-        systemInstruction.add("parts", systemParts);
-        requestBody.add("systemInstruction", systemInstruction);
-
-        JsonArray contents = new JsonArray();
-        JsonObject userContent = new JsonObject();
-        userContent.addProperty("role", "user");
-        JsonArray userParts = new JsonArray();
-        JsonObject userPart = new JsonObject();
-        userPart.addProperty("text", userPrompt);
-        userParts.add(userPart);
-        userContent.add("parts", userParts);
-        contents.add(userContent);
-        requestBody.add("contents", contents);
-
-        JsonObject generationConfig = new JsonObject();
         int maxTokens = Math.min(Math.max(roomCount * 150, 2048), 65536);
-        generationConfig.addProperty("maxOutputTokens", maxTokens);
-        generationConfig.addProperty("responseMimeType", "application/json");
-        requestBody.add("generationConfig", generationConfig);
+        requestBody.addProperty("max_completion_tokens", maxTokens);
 
-        String url = GEMINI_BASE_URL + "/models/" + GEMINI_MODEL + ":generateContent";
+        JsonObject responseFormat = new JsonObject();
+        responseFormat.addProperty("type", "json_object");
+        requestBody.add("response_format", responseFormat);
+
+        JsonArray messages = new JsonArray();
+
+        JsonObject systemMsg = new JsonObject();
+        systemMsg.addProperty("role", "system");
+        systemMsg.addProperty("content", systemPrompt);
+        messages.add(systemMsg);
+
+        JsonObject userMsg = new JsonObject();
+        userMsg.addProperty("role", "user");
+        userMsg.addProperty("content", userPrompt);
+        messages.add(userMsg);
+
+        requestBody.add("messages", messages);
+
+        String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
                 .build();
 
-        log.info("Calling Gemini API for dungeon generation ({} rooms, maxTokens={})", roomCount, maxTokens);
+        log.info("Calling LLM API for dungeon generation ({} rooms, maxTokens={})", roomCount, maxTokens);
 
         HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            log.error("Gemini API returned status {}: {}", response.statusCode(), response.body());
-            throw new IOException("Gemini API returned status " + response.statusCode());
+            log.error("LLM API returned status {}: {}", response.statusCode(), response.body());
+            throw new IOException("LLM API returned status " + response.statusCode());
         }
 
         JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
         return responseJson
-                .getAsJsonArray("candidates")
+                .getAsJsonArray("choices")
                 .get(0).getAsJsonObject()
-                .getAsJsonObject("content")
-                .getAsJsonArray("parts")
-                .get(0).getAsJsonObject()
-                .get("text").getAsString();
+                .getAsJsonObject("message")
+                .get("content").getAsString();
     }
 
     private DungeonGenerateResponse parseResponse(String llmContent, List<DungeonGenerateRequest.RoomInput> originalRooms) {
@@ -156,8 +156,8 @@ public class DungeonMapService {
         try {
             parsed = JsonParser.parseString(llmContent).getAsJsonObject();
         } catch (Exception e) {
-            log.error("Failed to parse Gemini response as JSON: {}", llmContent, e);
-            throw new RuntimeException("Gemini returned invalid JSON response");
+            log.error("Failed to parse LLM response as JSON: {}", llmContent, e);
+            throw new RuntimeException("LLM returned invalid JSON response");
         }
 
         String dungeonName = "Unnamed Dungeon";
@@ -182,11 +182,11 @@ public class DungeonMapService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to parse rooms from Gemini response, using fallback names", e);
+            log.warn("Failed to parse rooms from LLM response, using fallback names", e);
         }
 
         if (llmRoomsById.isEmpty()) {
-            log.warn("Gemini returned no valid room data, all rooms will use original names");
+            log.warn("LLM returned no valid room data, all rooms will use original names");
         }
 
         List<DungeonGenerateResponse.RoomOutput> outputRooms = new ArrayList<>();
