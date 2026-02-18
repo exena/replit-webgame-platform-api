@@ -1,11 +1,9 @@
-package com.arcadex.api.config;
+package com.arcadex.api.config.game;
 
-import com.arcadex.api.entity.Game;
-import com.arcadex.api.repository.GameRepository;
+import com.arcadex.api.game.entity.Game;
+import com.arcadex.api.game.repository.GameRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-
-import java.util.Optional;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -82,3 +80,4 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 }
+

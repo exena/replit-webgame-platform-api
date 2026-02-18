@@ -1,8 +1,8 @@
-package com.arcadex.api.controller;
+package com.arcadex.api.dungeon.controller;
 
-import com.arcadex.api.dto.DungeonGenerateRequest;
-import com.arcadex.api.dto.DungeonGenerateResponse;
-import com.arcadex.api.service.DungeonMapService;
+import com.arcadex.api.dungeon.dto.DungeonGenerateRequest;
+import com.arcadex.api.dungeon.dto.DungeonGenerateResponse;
+import com.arcadex.api.dungeon.service.DungeonMapService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -49,3 +49,4 @@ public class DungeonMapController {
         }
     }
 }
+

@@ -1,7 +1,7 @@
-package com.arcadex.api.service;
+package com.arcadex.api.game.service;
 
-import com.arcadex.api.entity.Game;
-import com.arcadex.api.repository.GameRepository;
+import com.arcadex.api.game.entity.Game;
+import com.arcadex.api.game.repository.GameRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -203,3 +203,4 @@ public class GameUploadService {
         return "application/octet-stream";
     }
 }
+

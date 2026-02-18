@@ -1,4 +1,4 @@
-package com.arcadex.api.entity;
+package com.arcadex.api.game.entity;
 
 import jakarta.persistence.*;
 

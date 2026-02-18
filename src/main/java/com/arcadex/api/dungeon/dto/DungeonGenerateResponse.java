@@ -1,4 +1,4 @@
-package com.arcadex.api.dto;
+package com.arcadex.api.dungeon.dto;
 
 import java.util.List;
 
@@ -57,3 +57,4 @@ public class DungeonGenerateResponse {
         public void setDescription(String description) { this.description = description; }
     }
 }
+

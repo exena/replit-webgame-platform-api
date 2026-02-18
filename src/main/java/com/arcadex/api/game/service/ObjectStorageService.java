@@ -1,4 +1,4 @@
-package com.arcadex.api.service;
+package com.arcadex.api.game.service;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -131,3 +131,4 @@ public class ObjectStorageService {
         return getSignedUrl(bucket, fullObjectName, "GET", ttlSec);
     }
 }
+

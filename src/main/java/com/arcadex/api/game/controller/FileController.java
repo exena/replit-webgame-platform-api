@@ -1,6 +1,6 @@
-package com.arcadex.api.controller;
+package com.arcadex.api.game.controller;
 
-import com.arcadex.api.service.ObjectStorageService;
+import com.arcadex.api.game.service.ObjectStorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,3 +77,4 @@ public class FileController {
         return "application/octet-stream";
     }
 }
+

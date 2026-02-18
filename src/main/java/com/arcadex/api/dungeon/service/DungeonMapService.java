@@ -1,7 +1,7 @@
-package com.arcadex.api.service;
+package com.arcadex.api.dungeon.service;
 
-import com.arcadex.api.dto.DungeonGenerateRequest;
-import com.arcadex.api.dto.DungeonGenerateResponse;
+import com.arcadex.api.dungeon.dto.DungeonGenerateRequest;
+import com.arcadex.api.dungeon.dto.DungeonGenerateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -78,9 +78,9 @@ public class DungeonMapService {
 
     private String buildUserPrompt(DungeonGenerateRequest request, int actualRoomCount) {
         StringBuilder sb = new StringBuilder();
-        sb.append("던전 컨셉: ").append(request.getPrompt()).append("\n\n");
-        sb.append("총 방 개수: ").append(actualRoomCount).append("\n\n");
-        sb.append("방 목록:\n");
+        sb.append("Dungeon concept: ").append(request.getPrompt()).append("\n\n");
+        sb.append("Total room count: ").append(actualRoomCount).append("\n\n");
+        sb.append("Room list:\n");
 
         for (DungeonGenerateRequest.RoomInput room : request.getRooms()) {
             sb.append("- id: ").append(room.getId())
@@ -91,9 +91,9 @@ public class DungeonMapService {
         }
 
         if (request.getCorridors() != null && !request.getCorridors().isEmpty()) {
-            sb.append("\n연결 정보:\n");
+            sb.append("\nCorridor links:\n");
             for (DungeonGenerateRequest.CorridorInput c : request.getCorridors()) {
-                sb.append("- ").append(c.getFrom()).append(" → ").append(c.getTo()).append("\n");
+                sb.append("- ").append(c.getFrom()).append(" -> ").append(c.getTo()).append("\n");
             }
         }
 
@@ -214,3 +214,4 @@ public class DungeonMapService {
         return new DungeonGenerateResponse(dungeonName, outputRooms);
     }
 }
+

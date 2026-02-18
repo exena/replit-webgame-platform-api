@@ -1,8 +1,8 @@
-package com.arcadex.api.controller;
+package com.arcadex.api.game.controller;
 
-import com.arcadex.api.entity.Game;
-import com.arcadex.api.repository.GameRepository;
-import com.arcadex.api.service.GameUploadService;
+import com.arcadex.api.game.entity.Game;
+import com.arcadex.api.game.repository.GameRepository;
+import com.arcadex.api.game.service.GameUploadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -87,3 +87,4 @@ public class GameController {
         }
     }
 }
+

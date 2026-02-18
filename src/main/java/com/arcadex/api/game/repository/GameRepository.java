@@ -1,6 +1,6 @@
-package com.arcadex.api.repository;
+package com.arcadex.api.game.repository;
 
-import com.arcadex.api.entity.Game;
+import com.arcadex.api.game.entity.Game;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
