@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -30,6 +31,7 @@ public class PlayableCharacterGirService {
             .build();
 
     private final GirValidationService girValidationService;
+    private static final int MAX_SELF_REPAIR_ATTEMPTS = 1;
 
     @Value("${ai.openai.base-url}")
     private String baseUrl;
@@ -42,26 +44,40 @@ public class PlayableCharacterGirService {
     }
 
     public PlayableCharacterGirGenerateResponse generate(PlayableCharacterGirGenerateRequest request) throws IOException, InterruptedException {
-        String llmResponse = callLlm(buildSystemPrompt(), buildUserPrompt(request));
+        String systemPrompt = buildSystemPrompt();
+        String userPrompt = buildUserPrompt(request);
 
-        GirProgramDto gir;
-        try {
-            gir = gson.fromJson(llmResponse, GirProgramDto.class);
-        } catch (Exception e) {
-            throw new RuntimeException("LLM returned invalid GIR JSON", e);
-        }
-
+        GirProgramDto gir = parseGirOrThrow(callLlm(systemPrompt, userPrompt));
         List<String> warnings = girValidationService.validateGir(gir);
-        if (!warnings.isEmpty()) {
-            log.warn("GIR generated with warnings: {}", warnings);
+
+        int attempts = 0;
+        while (!warnings.isEmpty() && attempts < MAX_SELF_REPAIR_ATTEMPTS) {
+            attempts++;
+            log.warn("GIR generated with warnings (attempt {}): {}", attempts, warnings);
+
+            String repairPrompt = buildRepairPrompt(request, warnings, gir);
+            gir = parseGirOrThrow(callLlm(systemPrompt, repairPrompt));
+            warnings = girValidationService.validateGir(gir);
         }
 
-        return new PlayableCharacterGirGenerateResponse(gir, warnings);
+        if (!warnings.isEmpty()) {
+            log.warn("GIR still has warnings after self-repair: {}", warnings);
+        }
+
+        return new PlayableCharacterGirGenerateResponse(gir, new ArrayList<>(warnings));
     }
 
     private String buildSystemPrompt() {
         return """
                 You are a compiler that converts user intent into GIR JSON.
+
+                GIR primitive reference for this endpoint:
+                - axis2d(xNeg: bool, xPos: bool, yNeg: bool, yPos: bool) -> vec2
+                  Produces a normalized 2D input direction vector.
+                - mulScalar(a: vec2, b: number) -> vec2
+                  Scales direction by speed to produce velocity.
+                - integrate2d(pos: state{x,y}, vel: vec2, dt: number) -> state{x,y}
+                  Integrates velocity over dt and writes updated x/y into state.
 
                 Rules (strict):
                 1) Output ONLY JSON. No markdown, no comments, no extra text.
@@ -94,11 +110,51 @@ public class PlayableCharacterGirService {
                 }
                 6) Keep identifiers simple and valid (letters, numbers, underscore).
                 7) speed must be a positive number.
+                8) If the requirement asks for unsupported features (jump, gravity, collision, dash, animation, attack),
+                   ignore those features and still generate the best valid movement-only GIR.
                 """;
     }
 
     private String buildUserPrompt(PlayableCharacterGirGenerateRequest request) {
-        return "Generate GIR for this requirement: " + request.getPrompt();
+        return """
+                Generate a GIR program from the requirement below.
+                Keep only movement logic that this endpoint supports.
+
+                Requirement:
+                %s
+
+                Output checklist:
+                - Use only axis2d -> mulScalar -> integrate2d in onUpdate.
+                - Keep required top-level fields and exact key names.
+                - defaults.state.speed must be a positive number.
+                """.formatted(request.getPrompt());
+    }
+
+    private String buildRepairPrompt(PlayableCharacterGirGenerateRequest request, List<String> warnings, GirProgramDto previousGir) {
+        return """
+                The previous GIR failed validation. Fix it and return corrected JSON only.
+
+                Original requirement:
+                %s
+
+                Validation warnings to fix:
+                - %s
+
+                Previous GIR JSON:
+                %s
+                """.formatted(
+                request.getPrompt(),
+                String.join("\n- ", warnings),
+                gson.toJson(previousGir)
+        );
+    }
+
+    private GirProgramDto parseGirOrThrow(String llmResponse) {
+        try {
+            return gson.fromJson(llmResponse, GirProgramDto.class);
+        } catch (Exception e) {
+            throw new RuntimeException("LLM returned invalid GIR JSON", e);
+        }
     }
 
     private String callLlm(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
