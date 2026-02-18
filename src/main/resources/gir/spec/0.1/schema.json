@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/gir/program-0.1.schema.json",
+  "title": "GIR Program v0.1 (2D Move Minimal)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kind", "inputMapping", "inputs", "stateSchema", "defaults", "program"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "gir.program"
+    },
+    "inputMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "right", "up", "down"],
+      "properties": {
+        "left": { "type": "string", "const": "ArrowLeft" },
+        "right": { "type": "string", "const": "ArrowRight" },
+        "up": { "type": "string", "const": "ArrowUp" },
+        "down": { "type": "string", "const": "ArrowDown" }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "right", "up", "down"],
+      "properties": {
+        "left": { "type": "string", "const": "bool" },
+        "right": { "type": "string", "const": "bool" },
+        "up": { "type": "string", "const": "bool" },
+        "down": { "type": "string", "const": "bool" }
+      }
+    },
+    "stateSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "speed"],
+      "properties": {
+        "x": { "type": "string", "const": "number" },
+        "y": { "type": "string", "const": "number" },
+        "speed": { "type": "string", "const": "number" }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "speed"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "speed": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onUpdate"],
+      "properties": {
+        "onUpdate": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/statement"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "inputName": {
+      "type": "string",
+      "enum": ["left", "right", "up", "down"]
+    },
+    "reservedRef": {
+      "type": "string",
+      "enum": ["$dt", "$state", "$state.speed"]
+    },
+    "scalarRef": {
+      "oneOf": [
+        { "type": "number" },
+        { "$ref": "#/$defs/reservedRef" },
+        { "$ref": "#/$defs/identifier" }
+      ]
+    },
+    "vec2Ref": {
+      "oneOf": [
+        { "$ref": "#/$defs/identifier" }
+      ]
+    },
+    "axis2d": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "out", "xNeg", "xPos", "yNeg", "yPos"],
+      "properties": {
+        "op": { "type": "string", "const": "axis2d" },
+        "out": { "$ref": "#/$defs/identifier" },
+        "xNeg": { "$ref": "#/$defs/inputName" },
+        "xPos": { "$ref": "#/$defs/inputName" },
+        "yNeg": { "$ref": "#/$defs/inputName" },
+        "yPos": { "$ref": "#/$defs/inputName" }
+      }
+    },
+    "mulScalar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "out", "a", "b"],
+      "properties": {
+        "op": { "type": "string", "const": "mulScalar" },
+        "out": { "$ref": "#/$defs/identifier" },
+        "a": { "$ref": "#/$defs/vec2Ref" },
+        "b": { "$ref": "#/$defs/scalarRef" }
+      }
+    },
+    "integrate2d": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "pos", "vel", "dt"],
+      "properties": {
+        "op": { "type": "string", "const": "integrate2d" },
+        "pos": { "type": "string", "const": "$state" },
+        "vel": { "$ref": "#/$defs/vec2Ref" },
+        "dt": { "type": "string", "const": "$dt" }
+      }
+    },
+    "statement": {
+      "oneOf": [
+        { "$ref": "#/$defs/axis2d" },
+        { "$ref": "#/$defs/mulScalar" },
+        { "$ref": "#/$defs/integrate2d" }
+      ]
+    }
+  }
+}
